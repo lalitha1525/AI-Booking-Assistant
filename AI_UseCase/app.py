@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "."))
 
 from utils.rag import process_pdfs, get_rag_answer
 from utils.booking import (
-    init_db,   
+    init_db,
     init_booking,
     update_booking,
     next_question,
@@ -16,7 +16,11 @@ from utils.booking import (
 )
 from utils.intent import detect_intent, is_question
 from utils.emailer import send_confirmation_email
-from utils.admin import get_all_bookings
+from utils.admin import (
+    get_all_bookings,
+    cancel_booking,
+    update_booking_status
+)
 
 USER_AVATAR = "👤"
 BOT_AVATAR = "🤖"
@@ -90,7 +94,6 @@ def chat_page():
                 # -------- BOOKING MODE --------
                 elif "booking" in st.session_state:
 
-                    # CONFIRMATION
                     if prompt.lower() == "yes":
                         booking_id = save_booking(st.session_state.booking)
 
@@ -108,10 +111,11 @@ def chat_page():
                             f"📌 Booking ID: `{booking_id}`\n\n"
                         )
 
-                        if email_sent:
-                            response += "📧 Confirmation email sent successfully."
-                        else:
-                            response += "⚠️ Booking saved, but email could not be sent."
+                        response += (
+                            "📧 Confirmation email sent."
+                            if email_sent
+                            else "⚠️ Booking saved, email could not be sent."
+                        )
 
                         del st.session_state.booking
 
@@ -119,12 +123,10 @@ def chat_page():
                         response = "❌ Booking cancelled."
                         del st.session_state.booking
 
-                    # QUESTION DURING BOOKING
                     elif is_question(prompt) and "rag_data" in st.session_state:
                         info = get_rag_answer(prompt, st.session_state.rag_data)
                         response = info + "\n\n➡️ " + next_question(st.session_state.booking)
 
-                    # NORMAL FIELD INPUT
                     else:
                         st.session_state.booking = update_booking(
                             st.session_state.booking, prompt
@@ -132,10 +134,8 @@ def chat_page():
 
                         if "_error" in st.session_state.booking:
                             response = st.session_state.booking["_error"]
-
                         else:
                             q = next_question(st.session_state.booking)
-
                             if q:
                                 response = q
                             else:
@@ -175,13 +175,7 @@ def chat_page():
 def admin_page():
     st.title("📊 Admin Dashboard")
 
-    try:
-        df = get_all_bookings()
-    except Exception as e:
-        st.error("Failed to load bookings.")
-        st.stop()
-
-    st.markdown("### 📋 All Bookings")
+    df = get_all_bookings()
 
     if df.empty:
         st.info("No bookings available yet.")
@@ -194,79 +188,42 @@ def admin_page():
     col1, col2 = st.columns(2)
 
     with col1:
-    cancel_id = st.text_input("Booking ID to Cancel")
+        cancel_id = st.text_input("Booking ID to Cancel")
 
-    if st.button("❌ Cancel Booking"):
-        if not cancel_id.strip():
-            st.warning("Please enter a Booking ID")
-        else:
-            cancelled = False
-
-            # 1️⃣ Try database cancel
-            try:
-                cancelled = cancel_booking(cancel_id.strip())
-            except:
-                cancelled = False
-
-            # 2️⃣ Fallback: session state (Streamlit Cloud safe)
-            if not cancelled and "all_bookings" in st.session_state:
-                for b in st.session_state["all_bookings"]:
-                    if b["id"] == cancel_id.strip():
-                        b["status"] = "CANCELLED"
-                        cancelled = True
-                        break
-
-            if cancelled:
-                st.success("Booking cancelled successfully.")
-                st.rerun()
+        if st.button("❌ Cancel Booking"):
+            if cancel_id.strip():
+                if cancel_booking(cancel_id.strip()):
+                    st.success("Booking cancelled successfully.")
+                    st.rerun()
+                else:
+                    st.error("Cancel operation failed.")
             else:
-                st.error("Booking ID not found.")
-
+                st.warning("Please enter a Booking ID")
 
     with col2:
-    update_id = st.text_input("Booking ID to Update")
-    status = st.selectbox("New Status", ["CONFIRMED", "CANCELLED"])
+        update_id = st.text_input("Booking ID to Update")
+        status = st.selectbox("New Status", ["CONFIRMED", "CANCELLED"])
 
-    if st.button("✅ Update Status"):
-        if not update_id.strip():
-            st.warning("Please enter a Booking ID")
-        else:
-            updated = False
-
-            try:
-                updated = update_booking_status(update_id.strip(), status)
-            except:
-                updated = False
-
-            if not updated and "all_bookings" in st.session_state:
-                for b in st.session_state["all_bookings"]:
-                    if b["id"] == update_id.strip():
-                        b["status"] = status
-                        updated = True
-                        break
-
-            if updated:
-                st.success("Booking status updated.")
-                st.rerun()
+        if st.button("✅ Update Status"):
+            if update_id.strip():
+                if update_booking_status(update_id.strip(), status):
+                    st.success("Booking status updated.")
+                    st.rerun()
+                else:
+                    st.error("Update failed.")
             else:
-                st.error("Booking ID not found.")
-
+                st.warning("Please enter a Booking ID")
 
     st.divider()
     st.markdown("### 📥 Export Bookings")
 
     if not df.empty:
         csv = df.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            "⬇️ Download CSV",
-            csv,
-            "appointments.csv",
-            "text/csv"
-        )
+        st.download_button("⬇️ Download CSV", csv, "appointments.csv", "text/csv")
+
 
 # ---------------- MAIN ----------------
 def main():
-    # ✅ ENSURE DATABASE & TABLES EXIST
     init_db()
 
     st.set_page_config(
@@ -289,10 +246,5 @@ def main():
         instructions_page()
 
 
-
 if __name__ == "__main__":
     main()
-
-
-
-
