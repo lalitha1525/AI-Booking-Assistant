@@ -184,10 +184,36 @@ def admin_page():
     st.title("📊 Admin Dashboard")
 
     df = get_all_bookings()
-    if df.empty:
-        st.info("No bookings available.")
-        return
 
+    # ✅ STREAMLIT CLOUD SAFE FALLBACK
+    if df.empty:
+        if "last_booking" in st.session_state:
+            st.warning(
+                "SQLite database reset detected (Streamlit Cloud). "
+                "Showing latest booking from current session."
+            )
+
+            b = st.session_state["last_booking"]
+
+            st.markdown("### 📌 Latest Booking")
+            st.markdown(
+                f"""
+                **Booking ID:** {b['id']}  
+                **Name:** {b['name']}  
+                **Email:** {b['email']}  
+                **Phone:** {b['phone']}  
+                **Service:** {b['service']}  
+                **Date:** {b['date']}  
+                **Time:** {b['time']}  
+                **Status:** {b['status']}
+                """
+            )
+            return
+        else:
+            st.info("No bookings available.")
+            return
+
+    # -------- NORMAL ADMIN FLOW --------
     st.markdown("### 🔍 Filter by Booking ID")
     booking_id = st.text_input("Booking ID")
     if booking_id:
@@ -223,7 +249,6 @@ def admin_page():
         "text/csv"
     )
 
-
 # ---------------- MAIN ----------------
 def main():
     st.set_page_config(
@@ -247,4 +272,5 @@ def main():
 
 
 if __name__ == "__main__":
+
     main()
