@@ -175,9 +175,12 @@ def chat_page():
 def admin_page():
     st.title("📊 Admin Dashboard")
 
-    df = get_all_bookings()
+    try:
+        df = get_all_bookings()
+    except Exception as e:
+        st.error("Failed to load bookings.")
+        st.stop()
 
-    # -------- BOOKINGS TABLE --------
     st.markdown("### 📋 All Bookings")
 
     if df.empty:
@@ -186,50 +189,48 @@ def admin_page():
         st.dataframe(df, use_container_width=True)
 
     st.divider()
-
-    # -------- MANAGE BOOKINGS --------
     st.markdown("### ✏️ Update / Cancel Booking")
 
     col1, col2 = st.columns(2)
 
     with col1:
-        cancel_id = st.text_input("Booking ID to Cancel")
+        cancel_id = st.text_input("Booking ID to Cancel", key="cancel_id")
         if st.button("❌ Cancel Booking"):
             if cancel_id.strip():
-                cancel_booking(cancel_id.strip())
-                st.success("Booking cancelled successfully.")
-                st.rerun()
+                try:
+                    cancel_booking(cancel_id.strip())
+                    st.success("Booking cancelled successfully.")
+                    st.rerun()
+                except Exception as e:
+                    st.error("Cancel operation failed.")
             else:
-                st.error("Please enter a Booking ID")
+                st.warning("Please enter a Booking ID")
 
     with col2:
-        update_id = st.text_input("Booking ID to Update")
+        update_id = st.text_input("Booking ID to Update", key="update_id")
         status = st.selectbox("New Status", ["CONFIRMED", "CANCELLED"])
         if st.button("✅ Update Status"):
             if update_id.strip():
-                update_booking_status(update_id.strip(), status)
-                st.success("Booking status updated.")
-                st.rerun()
+                try:
+                    update_booking_status(update_id.strip(), status)
+                    st.success("Booking status updated.")
+                    st.rerun()
+                except Exception as e:
+                    st.error("Update operation failed.")
             else:
-                st.error("Please enter a Booking ID")
+                st.warning("Please enter a Booking ID")
 
     st.divider()
-
-    # -------- EXPORT --------
     st.markdown("### 📥 Export Bookings")
 
     if not df.empty:
         csv = df.to_csv(index=False).encode("utf-8")
         st.download_button(
-            label="⬇️ Download CSV",
-            data=csv,
-            file_name="appointments.csv",
-            mime="text/csv"
+            "⬇️ Download CSV",
+            csv,
+            "appointments.csv",
+            "text/csv"
         )
-    else:
-        st.info("CSV export will be available once bookings exist.")
-
-
 
 # ---------------- MAIN ----------------
 def main():
@@ -259,5 +260,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
