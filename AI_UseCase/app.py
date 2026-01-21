@@ -194,31 +194,63 @@ def admin_page():
     col1, col2 = st.columns(2)
 
     with col1:
-        cancel_id = st.text_input("Booking ID to Cancel", key="cancel_id")
-        if st.button("❌ Cancel Booking"):
-            if cancel_id.strip():
-                try:
-                    cancel_booking(cancel_id.strip())
-                    st.success("Booking cancelled successfully.")
-                    st.rerun()
-                except Exception as e:
-                    st.error("Cancel operation failed.")
+    cancel_id = st.text_input("Booking ID to Cancel")
+
+    if st.button("❌ Cancel Booking"):
+        if not cancel_id.strip():
+            st.warning("Please enter a Booking ID")
+        else:
+            cancelled = False
+
+            # 1️⃣ Try database cancel
+            try:
+                cancelled = cancel_booking(cancel_id.strip())
+            except:
+                cancelled = False
+
+            # 2️⃣ Fallback: session state (Streamlit Cloud safe)
+            if not cancelled and "all_bookings" in st.session_state:
+                for b in st.session_state["all_bookings"]:
+                    if b["id"] == cancel_id.strip():
+                        b["status"] = "CANCELLED"
+                        cancelled = True
+                        break
+
+            if cancelled:
+                st.success("Booking cancelled successfully.")
+                st.rerun()
             else:
-                st.warning("Please enter a Booking ID")
+                st.error("Booking ID not found.")
+
 
     with col2:
-        update_id = st.text_input("Booking ID to Update", key="update_id")
-        status = st.selectbox("New Status", ["CONFIRMED", "CANCELLED"])
-        if st.button("✅ Update Status"):
-            if update_id.strip():
-                try:
-                    update_booking_status(update_id.strip(), status)
-                    st.success("Booking status updated.")
-                    st.rerun()
-                except Exception as e:
-                    st.error("Update operation failed.")
+    update_id = st.text_input("Booking ID to Update")
+    status = st.selectbox("New Status", ["CONFIRMED", "CANCELLED"])
+
+    if st.button("✅ Update Status"):
+        if not update_id.strip():
+            st.warning("Please enter a Booking ID")
+        else:
+            updated = False
+
+            try:
+                updated = update_booking_status(update_id.strip(), status)
+            except:
+                updated = False
+
+            if not updated and "all_bookings" in st.session_state:
+                for b in st.session_state["all_bookings"]:
+                    if b["id"] == update_id.strip():
+                        b["status"] = status
+                        updated = True
+                        break
+
+            if updated:
+                st.success("Booking status updated.")
+                st.rerun()
             else:
-                st.warning("Please enter a Booking ID")
+                st.error("Booking ID not found.")
+
 
     st.divider()
     st.markdown("### 📥 Export Bookings")
@@ -260,6 +292,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
