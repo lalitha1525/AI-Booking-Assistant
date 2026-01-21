@@ -1,5 +1,3 @@
-
-
 import streamlit as st
 import os
 import sys
@@ -17,15 +15,10 @@ from utils.booking import (
 )
 from utils.intent import detect_intent, is_question
 from utils.emailer import send_confirmation_email
-from utils.admin import (
-    get_all_bookings,
-    cancel_booking,
-    update_booking_status
-)
+from utils.admin import get_all_bookings
 
 USER_AVATAR = "👤"
 BOT_AVATAR = "🤖"
-
 
 
 # ---------------- INSTRUCTIONS PAGE ----------------
@@ -39,7 +32,7 @@ def instructions_page():
     - Booking retrieval by user (email-based)
     - SQLite persistence
     - Email confirmation (SMTP)
-    - Admin dashboard (edit / cancel / export)
+    - Admin dashboard
     - Improved UX (avatars, spinners)
     - Short-term memory (last 25 messages)
     """)
@@ -49,7 +42,6 @@ def instructions_page():
 def chat_page():
     st.title("🩺 Doctor Appointment AI Assistant")
 
-    # -------- PDF Upload --------
     uploaded_files = st.file_uploader(
         "Upload clinic PDFs (timings, services, doctors)",
         type=["pdf"],
@@ -61,7 +53,6 @@ def chat_page():
             st.session_state.rag_data = process_pdfs(uploaded_files)
         st.success("✅ PDFs processed successfully")
 
-    # -------- Chat Memory --------
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
@@ -70,7 +61,6 @@ def chat_page():
         with st.chat_message(msg["role"], avatar=avatar):
             st.markdown(msg["content"])
 
-    # -------- User Input --------
     if prompt := st.chat_input("Ask a question or book an appointment..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
 
@@ -80,7 +70,7 @@ def chat_page():
         with st.chat_message("assistant", avatar=BOT_AVATAR):
             with st.spinner("🤖 Thinking..."):
 
-                # ================= BOOKING RETRIEVAL =================
+                # ---------- BOOKING RETRIEVAL ----------
                 if "awaiting_email_lookup" in st.session_state:
                     bookings = get_bookings_by_email(prompt)
                     del st.session_state.awaiting_email_lookup
@@ -88,9 +78,7 @@ def chat_page():
                     if bookings:
                         response = "📋 **Your bookings:**\n\n"
                         for b in bookings:
-                            response += (
-                                f"- 📌 {b[0]} | {b[1]} | {b[2]} | {b[3]} | {b[4]}\n"
-                            )
+                            response += f"- 📌 {b[0]} | {b[1]} | {b[2]} | {b[3]} | {b[4]}\n"
                     else:
                         response = "❌ No bookings found for this email."
 
@@ -98,11 +86,24 @@ def chat_page():
                     st.session_state.awaiting_email_lookup = True
                     response = "📧 Please enter your email to retrieve your bookings."
 
-                # ================= BOOKING MODE =================
+                # ---------- BOOKING MODE ----------
                 elif "booking" in st.session_state:
 
                     if prompt.lower() == "yes":
                         booking_id = save_booking(st.session_state.booking)
+
+                        # ✅ Persist booking for Admin (Streamlit Cloud safe)
+                        st.session_state.setdefault("all_bookings", [])
+                        st.session_state["all_bookings"].append({
+                            "id": booking_id,
+                            "name": st.session_state.booking["name"],
+                            "email": st.session_state.booking["email"],
+                            "phone": st.session_state.booking["phone"],
+                            "service": st.session_state.booking["service"],
+                            "date": st.session_state.booking["date"],
+                            "time": st.session_state.booking["time"],
+                            "status": "CONFIRMED"
+                        })
 
                         email_sent = send_confirmation_email(
                             st.session_state.booking["email"],
@@ -113,15 +114,8 @@ def chat_page():
                             st.session_state.booking["time"]
                         )
 
-                        response = (
-                            f"✅ **Appointment confirmed!**\n\n"
-                            f"📌 Booking ID: `{booking_id}`"
-                        )
-
-                        if email_sent:
-                            response += "\n\n📧 Confirmation email sent."
-                        else:
-                            response += "\n\n⚠️ Booking saved, email could not be sent."
+                        response = f"✅ **Appointment confirmed!**\n\n📌 Booking ID: `{booking_id}`"
+                        response += "\n\n📧 Confirmation email sent." if email_sent else "\n\n⚠️ Email failed."
 
                         del st.session_state.booking
 
@@ -130,8 +124,8 @@ def chat_page():
                         del st.session_state.booking
 
                     elif is_question(prompt) and "rag_data" in st.session_state:
-                        info = get_rag_answer(prompt, st.session_state.rag_data)
-                        response = info + "\n\n➡️ " + next_question(st.session_state.booking)
+                        response = get_rag_answer(prompt, st.session_state.rag_data)
+                        response += "\n\n➡️ " + next_question(st.session_state.booking)
 
                     else:
                         st.session_state.booking = update_booking(
@@ -142,30 +136,16 @@ def chat_page():
                             response = st.session_state.booking["_error"]
                         else:
                             q = next_question(st.session_state.booking)
-                            if q:
-                                response = q
-                            else:
-                                b = st.session_state.booking
-                                response = (
-                                    "### 🔎 Please confirm your appointment:\n\n"
-                                    f"👤 **Name:** {b['name']}\n"
-                                    f"📧 **Email:** {b['email']}\n"
-                                    f"📞 **Phone:** {b['phone']}\n"
-                                    f"🩺 **Service:** {b['service']}\n"
-                                    f"📅 **Date:** {b['date']}\n"
-                                    f"⏰ **Time:** {b['time']}\n\n"
-                                    "Type **YES** to confirm or **NO** to cancel."
-                                )
+                            response = q if q else "Type **YES** to confirm or **NO** to cancel."
 
-                # ================= START BOOKING =================
+                # ---------- START BOOKING ----------
                 elif detect_intent(prompt) == "booking":
                     st.session_state.booking = init_booking()
-                    response = (
-                        "📝 Let’s start booking your appointment.\n\n"
-                        + next_question(st.session_state.booking)
+                    response = "📝 Let’s start booking your appointment.\n\n" + next_question(
+                        st.session_state.booking
                     )
 
-                # ================= GENERAL RAG =================
+                # ---------- GENERAL RAG ----------
                 else:
                     if "rag_data" in st.session_state:
                         response = get_rag_answer(prompt, st.session_state.rag_data)
@@ -174,9 +154,7 @@ def chat_page():
 
                 st.markdown(response)
 
-        st.session_state.messages.append(
-            {"role": "assistant", "content": response}
-        )
+        st.session_state.messages.append({"role": "assistant", "content": response})
 
 
 # ---------------- ADMIN PAGE ----------------
@@ -185,17 +163,13 @@ def admin_page():
 
     df = get_all_bookings()
 
-    # ✅ STREAMLIT CLOUD SAFE FALLBACK
-    if df.empty:
-        if "last_booking" in st.session_state:
-            st.warning(
-                "SQLite database reset detected (Streamlit Cloud). "
-                "Showing latest booking from current session."
-            )
+    if not df.empty:
+        st.dataframe(df, use_container_width=True)
 
-            b = st.session_state["last_booking"]
+    elif "all_bookings" in st.session_state and st.session_state["all_bookings"]:
+        st.warning("SQLite reset detected. Showing session bookings.")
 
-            st.markdown("### 📌 Latest Booking")
+        for b in st.session_state["all_bookings"]:
             st.markdown(
                 f"""
                 **Booking ID:** {b['id']}  
@@ -206,48 +180,12 @@ def admin_page():
                 **Date:** {b['date']}  
                 **Time:** {b['time']}  
                 **Status:** {b['status']}
+                ---
                 """
             )
-            return
-        else:
-            st.info("No bookings available.")
-            return
+    else:
+        st.info("No bookings available yet.")
 
-    # -------- NORMAL ADMIN FLOW --------
-    st.markdown("### 🔍 Filter by Booking ID")
-    booking_id = st.text_input("Booking ID")
-    if booking_id:
-        df = df[df["id"].str.contains(booking_id)]
-
-    st.dataframe(df, use_container_width=True)
-
-    st.markdown("### ✏️ Manage Booking")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        cancel_id = st.text_input("Cancel Booking ID")
-        if st.button("❌ Cancel Booking"):
-            cancel_booking(cancel_id)
-            st.warning("Booking cancelled.")
-            st.rerun()
-
-    with col2:
-        update_id = st.text_input("Update Booking ID")
-        status = st.selectbox("New Status", ["CONFIRMED", "CANCELLED"])
-        if st.button("✅ Update Status"):
-            update_booking_status(update_id, status)
-            st.success("Status updated.")
-            st.rerun()
-
-    st.markdown("### 📥 Export Bookings")
-    csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button(
-        "⬇️ Download CSV",
-        csv,
-        "appointments.csv",
-        "text/csv"
-    )
 
 # ---------------- MAIN ----------------
 def main():
@@ -272,5 +210,4 @@ def main():
 
 
 if __name__ == "__main__":
-
     main()
