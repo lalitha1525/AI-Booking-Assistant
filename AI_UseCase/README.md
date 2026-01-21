@@ -185,9 +185,9 @@ streamlit run app.py
 
 ---
 
-## 🌐 Live Deployment (Streamlit Cloud)
 
-The application has been successfully deployed on **Streamlit Cloud** and is publicly accessible.
+## 🌐 Live Deployment (Streamlit Cloud)
+The application is deployed on Streamlit Cloud and is publicly accessible for demonstration purposes.
 
 🔗 **Live App URL**  
 https://aiusecase-anwgr7zgzrbjwrxgzybbpm.streamlit.app/
@@ -202,9 +202,9 @@ https://aiusecase-anwgr7zgzrbjwrxgzybbpm.streamlit.app/
 - PDF upload and RAG-based Q&A
 - Booking flow with confirmation
 - Email notification (SMTP)
-- Booking retrieval
-- Admin dashboard
-- Input validation and error handling
+- Booking retrieval by user email
+- Admin dashboard to view bookings
+- Input validation and  basic error handling
 
 
 ## 🧪 Testing Checklist
