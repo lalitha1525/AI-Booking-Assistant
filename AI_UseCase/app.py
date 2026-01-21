@@ -177,11 +177,58 @@ def admin_page():
 
     df = get_all_bookings()
 
-    if df.empty:
-        st.info("No bookings available.")
-        return
+    # -------- BOOKINGS TABLE --------
+    st.markdown("### 📋 All Bookings")
 
-    st.dataframe(df, use_container_width=True)
+    if df.empty:
+        st.info("No bookings available yet.")
+    else:
+        st.dataframe(df, use_container_width=True)
+
+    st.divider()
+
+    # -------- MANAGE BOOKINGS --------
+    st.markdown("### ✏️ Update / Cancel Booking")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        cancel_id = st.text_input("Booking ID to Cancel")
+        if st.button("❌ Cancel Booking"):
+            if cancel_id.strip():
+                cancel_booking(cancel_id.strip())
+                st.success("Booking cancelled successfully.")
+                st.rerun()
+            else:
+                st.error("Please enter a Booking ID")
+
+    with col2:
+        update_id = st.text_input("Booking ID to Update")
+        status = st.selectbox("New Status", ["CONFIRMED", "CANCELLED"])
+        if st.button("✅ Update Status"):
+            if update_id.strip():
+                update_booking_status(update_id.strip(), status)
+                st.success("Booking status updated.")
+                st.rerun()
+            else:
+                st.error("Please enter a Booking ID")
+
+    st.divider()
+
+    # -------- EXPORT --------
+    st.markdown("### 📥 Export Bookings")
+
+    if not df.empty:
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            label="⬇️ Download CSV",
+            data=csv,
+            file_name="appointments.csv",
+            mime="text/csv"
+        )
+    else:
+        st.info("CSV export will be available once bookings exist.")
+
 
 
 # ---------------- MAIN ----------------
@@ -212,4 +259,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
