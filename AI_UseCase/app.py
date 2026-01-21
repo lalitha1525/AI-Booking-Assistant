@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "."))
 
 from utils.rag import process_pdfs, get_rag_answer
 from utils.booking import (
+    init_db,   
     init_booking,
     update_booking,
     next_question,
@@ -185,6 +186,9 @@ def admin_page():
 
 # ---------------- MAIN ----------------
 def main():
+    # ✅ ENSURE DATABASE & TABLES EXIST
+    init_db()
+
     st.set_page_config(
         page_title="Doctor Appointment AI Assistant",
         page_icon="🩺",
@@ -192,7 +196,7 @@ def main():
     )
 
     with st.sidebar:
-        page = st.radio("Navigate", ["Chat", "Admin", "Instructions"])
+        page = st.radio("Go to:", ["Chat", "Admin", "Instructions"])
         if st.button("🗑️ Clear Session"):
             st.session_state.clear()
             st.rerun()
@@ -205,5 +209,7 @@ def main():
         instructions_page()
 
 
+
 if __name__ == "__main__":
     main()
+
