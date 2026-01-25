@@ -13,7 +13,7 @@ The application is deployed as a **public Streamlit app** and fulfills all requi
 
 ---
 
-## 🎯 Objective (As per Assignment)
+## 🎯 Objective
 Design and implement a chat-based AI assistant that:
 - Uses RAG over user-uploaded PDFs
 - Detects booking intent and collects required details
